@@ -13,17 +13,26 @@ struct DoNotSleepApp: App {
     @StateObject private var launchAtLoginController = LaunchAtLoginController()
 
     var body: some Scene {
-        MenuBarExtra(
-            L10n.string("menu.title"),
-            systemImage: sleepController.isPreventingSleep ? "bolt.fill" : "bolt.slash",
-            isInserted: .constant(launchMode.showsMenuBar)
-        ) {
+        MenuBarExtra(isInserted: .constant(launchMode.showsMenuBar)) {
             MenuBarContentView(
                 sleepController: sleepController,
                 launchAtLoginController: launchAtLoginController
             )
+        } label: {
+            Image(systemName: menuBarSymbolName)
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private var menuBarSymbolName: String {
+        switch sleepController.protectionMode {
+        case .none:
+            return "bolt.slash"
+        case .systemSleep:
+            return "bolt.fill"
+        case .screenSaver, .systemSleepAndScreenSaver:
+            return "display"
+        }
     }
 }
 

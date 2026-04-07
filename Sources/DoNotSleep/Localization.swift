@@ -22,7 +22,19 @@ enum L10n {
             return string("status.justStarted")
         }
 
-        let duration = max(1, now.timeIntervalSince(startDate))
+        return format("status.activeDuration", durationText(for: max(1, now.timeIntervalSince(startDate))))
+    }
+
+    static func autoDisableCountdown(until endDate: Date?, now: Date) -> String {
+        guard let endDate else {
+            return string("timer.option.manual")
+        }
+
+        let remainingDuration = max(1, endDate.timeIntervalSince(now))
+        return format("timer.remaining", durationText(for: remainingDuration))
+    }
+
+    private static func durationText(for duration: TimeInterval) -> String {
         let formatter = DateComponentsFormatter()
         formatter.unitsStyle = .full
         formatter.maximumUnitCount = 2
@@ -36,7 +48,6 @@ enum L10n {
             formatter.allowedUnits = [.second]
         }
 
-        let durationText = formatter.string(from: duration) ?? "\(Int(duration))"
-        return format("status.activeDuration", durationText)
+        return formatter.string(from: duration) ?? "\(Int(duration))"
     }
 }
