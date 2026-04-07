@@ -1,0 +1,5 @@
+.build
+.build-xcode
+.build-xcode-test
+DoNotSleep.xcodeproj
+dist
