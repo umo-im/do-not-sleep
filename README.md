@@ -2,6 +2,21 @@
 
 Do Not Sleep은 Mac 메뉴바에서 바로 켜고 끌 수 있는 초소형 유틸리티입니다. AI 에이전트, 장시간 빌드, 원격 작업, 다운로드 같은 흐름이 돌아가는 동안 Mac이 유휴 상태로 잠들거나 화면보호기로 넘어가서 작업이 끊기는 일을 막는 것이 목적입니다.
 
+## Install
+
+macOS 13 Ventura 이상을 지원합니다. Apple Silicon과 Intel Mac에서 사용할 수 있습니다.
+
+**[Do Not Sleep v1.0.1 ZIP 다운로드](https://github.com/umo-im/do-not-sleep/releases/download/v1.0.1/Do-Not-Sleep-v1.0.1-macos.zip)** · [최신 릴리스](https://github.com/umo-im/do-not-sleep/releases/latest)
+
+ZIP을 압축 해제한 뒤 **Do Not Sleep.app**을 **응용 프로그램** 폴더로 옮기세요.
+
+### Homebrew
+
+```bash
+brew tap umo-im/do-not-sleep https://github.com/umo-im/do-not-sleep.git
+brew install --cask umo-im/do-not-sleep/umo-do-not-sleep
+```
+
 ## Features
 
 - `Keep Mac Awake`: 사용자 유휴 시스템 슬립을 방지합니다.
@@ -58,16 +73,7 @@ open DoNotSleep.xcodeproj
 
 현재 저장소에는 same-repo tap용 cask와 배포 스크립트가 같이 들어 있습니다.
 
-## Homebrew Install
-
-이 저장소 자체를 tap으로 사용할 수 있습니다. 저장소 이름이 `homebrew-*` 형식이 아니므로, tap 추가 시 URL을 같이 넘겨야 합니다.
-
-설치:
-
-```bash
-brew tap umo-im/do-not-sleep https://github.com/umo-im/do-not-sleep.git
-brew install --cask umo-im/do-not-sleep/umo-do-not-sleep
-```
+## Homebrew Update and Uninstall
 
 업데이트:
 
@@ -82,7 +88,7 @@ brew upgrade --cask umo-im/do-not-sleep/umo-do-not-sleep
 brew uninstall --cask umo-im/do-not-sleep/umo-do-not-sleep
 ```
 
-같은 저장소 tap용 cask는 [Casks/umo-do-not-sleep.rb](/Users/k1005/workspace/do-not-sleep-for-mac/Casks/umo-do-not-sleep.rb)에 있습니다.
+같은 저장소 tap용 cask는 [Casks/umo-do-not-sleep.rb](Casks/umo-do-not-sleep.rb)에 있습니다.
 
 중요:
 
