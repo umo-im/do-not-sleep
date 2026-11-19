@@ -2,7 +2,7 @@
 
 Do Not Sleep은 Mac 메뉴바에서 바로 켜고 끌 수 있는 초소형 유틸리티입니다. AI 에이전트, 장시간 빌드, 원격 작업, 다운로드 같은 흐름이 돌아가는 동안 Mac이 유휴 상태로 잠들거나 화면보호기로 넘어가서 작업이 끊기는 일을 막는 것이 목적입니다.
 
-**[앱 소개·설치·사용법 안내](https://do-not-sleep-for-mac-guide.erim1005.chatgpt.site/)**
+**[앱 소개·설치·사용법 안내](https://umo.im/do-not-sleep/)**
 
 ## Install
 
