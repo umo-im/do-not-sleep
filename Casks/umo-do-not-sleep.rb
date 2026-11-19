@@ -1,6 +1,6 @@
 cask "umo-do-not-sleep" do
-  version "1.0.1"
-  sha256 "da781c3a6707d8411cc1fd972ebcf009643a9b7d3b6d33d3a3c41496c0f7748a"
+  version "1.0.2"
+  sha256 "e83bad4284bb789639dd0eb327366e2607306c50c6edb390506a22771a1baa7a"
 
   url "https://github.com/umo-im/do-not-sleep/releases/download/v#{version}/Do-Not-Sleep-v#{version}-macos.zip",
       verified: "github.com/umo-im/do-not-sleep/"

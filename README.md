@@ -7,7 +7,7 @@ Do Not Sleep은 Mac 메뉴바에서 바로 켜고 끌 수 있는 초소형 유�
 macOS 13 Ventura 이상을 지원합니다. Apple Silicon과 Intel Mac에서 사용할 수 있습니다.
 
 <!-- release-download -->
-**[Do Not Sleep v1.0.1 ZIP 다운로드](https://github.com/umo-im/do-not-sleep/releases/download/v1.0.1/Do-Not-Sleep-v1.0.1-macos.zip)** · [최신 릴리스](https://github.com/umo-im/do-not-sleep/releases/latest)
+**[Do Not Sleep v1.0.2 ZIP 다운로드](https://github.com/umo-im/do-not-sleep/releases/download/v1.0.2/Do-Not-Sleep-v1.0.2-macos.zip)** · [최신 릴리스](https://github.com/umo-im/do-not-sleep/releases/latest)
 
 ZIP을 압축 해제한 뒤 **Do Not Sleep.app**을 **응용 프로그램** 폴더로 옮기세요.
 
