@@ -14,6 +14,7 @@ EXPORT_DIR="${EXPORT_DIR:-$ROOT_DIR/dist/export}"
 EXPORTED_APP_PATH="$EXPORT_DIR/$APP_BUNDLE_NAME"
 ALLOW_PROVISIONING_UPDATES="${ALLOW_PROVISIONING_UPDATES:-0}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
+NOTARIZE_WITH_XCODE="${NOTARIZE_WITH_XCODE:-0}"
 DEVELOPER_ID_SIGNING_CERTIFICATE="${DEVELOPER_ID_SIGNING_CERTIFICATE:-}"
 
 project_setting() {
@@ -41,6 +42,17 @@ required_value TEAM_ID "$TEAM_ID"
 required_value MARKETING_VERSION "$MARKETING_VERSION"
 required_value BUILD_NUMBER "$BUILD_NUMBER"
 
+export_destination=export
+export_path="$EXPORT_DIR"
+if [[ "$NOTARIZE_WITH_XCODE" == "1" ]]; then
+    if [[ -n "$NOTARY_PROFILE" ]]; then
+        echo "Choose Xcode notarization or NOTARY_PROFILE." >&2
+        exit 1
+    fi
+    export_destination=upload
+    export_path="$EXPORT_DIR-upload"
+fi
+
 mkdir -p "$ROOT_DIR/dist"
 
 export_options_plist="$(mktemp "${TMPDIR:-/tmp}/donotsleep-export-options.XXXXXX.plist")"
@@ -56,13 +68,15 @@ trap cleanup EXIT
 <plist version="1.0">
 <dict>
     <key>destination</key>
-    <string>export</string>
+    <string>$export_destination</string>
     <key>method</key>
     <string>developer-id</string>
     <key>signingStyle</key>
     <string>automatic</string>
     <key>teamID</key>
     <string>$TEAM_ID</string>
+    <key>manageAppVersionAndBuildNumber</key>
+    <false/>
 EOF
     if [[ -n "$DEVELOPER_ID_SIGNING_CERTIFICATE" ]]; then
         cat <<EOF
@@ -90,6 +104,8 @@ archive_cmd=(
     -archivePath "$ARCHIVE_PATH"
     -derivedDataPath "$DERIVED_DATA_PATH"
     DEVELOPMENT_TEAM="$TEAM_ID"
+    MARKETING_VERSION="$MARKETING_VERSION"
+    CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
 )
 
 if [[ "$ALLOW_PROVISIONING_UPDATES" == "1" ]]; then
@@ -104,7 +120,7 @@ export_cmd=(
     xcodebuild
     -exportArchive
     -archivePath "$ARCHIVE_PATH"
-    -exportPath "$EXPORT_DIR"
+    -exportPath "$export_path"
     -exportOptionsPlist "$export_options_plist"
 )
 
@@ -113,6 +129,20 @@ if [[ "$ALLOW_PROVISIONING_UPDATES" == "1" ]]; then
 fi
 
 "${export_cmd[@]}"
+
+if [[ "$NOTARIZE_WITH_XCODE" == "1" ]]; then
+    notary_log="$ROOT_DIR/dist/notarized-export.log"
+    deadline=$((SECONDS + 3600))
+    echo "Waiting for Apple notarization of $ARCHIVE_PATH"
+    until xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE_PATH" -exportPath "$EXPORT_DIR" > "$notary_log" 2>&1; do
+        if ! grep -Fq 'is processing and not ready for distribution' "$notary_log" || (( SECONDS >= deadline )); then
+            cat "$notary_log" >&2
+            exit 1
+        fi
+        sleep 20
+    done
+    xcrun stapler validate "$EXPORTED_APP_PATH"
+fi
 
 "$ROOT_DIR/scripts/check-signing.sh" --require-developer-id "$EXPORTED_APP_PATH"
 
@@ -127,7 +157,7 @@ fi
 
 rm -f "$ZIP_PATH" "$SHA_PATH"
 ditto -c -k --keepParent "$EXPORTED_APP_PATH" "$ZIP_PATH"
-shasum -a 256 "$ZIP_PATH" | tee "$SHA_PATH"
+(cd "$(dirname "$ZIP_PATH")" && shasum -a 256 "$(basename "$ZIP_PATH")") | tee "$SHA_PATH"
 
 echo
 echo "Release build ready:"
@@ -135,7 +165,9 @@ echo "Version: $MARKETING_VERSION ($BUILD_NUMBER)"
 echo "App: $EXPORTED_APP_PATH"
 echo "Zip: $ZIP_PATH"
 echo "SHA-256: $SHA_PATH"
-if [[ -n "$NOTARY_PROFILE" ]]; then
+if [[ "$NOTARIZE_WITH_XCODE" == "1" ]]; then
+    echo "Notarization: completed with the Xcode account"
+elif [[ -n "$NOTARY_PROFILE" ]]; then
     echo "Notarization: completed with profile $NOTARY_PROFILE"
 else
     echo "Notarization: skipped (set NOTARY_PROFILE to notarize and staple the app)"

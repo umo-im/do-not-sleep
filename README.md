@@ -97,6 +97,26 @@ brew uninstall --cask umo-im/do-not-sleep/umo-do-not-sleep
 - 공개한 최신 릴리스의 ZIP을 교체했다면 GitHub Actions에서 `Sync release install metadata`를 수동으로 실행해 체크섬을 다시 동기화하세요.
 - 공개 배포용으로는 `Developer ID Application` 서명과 notarization이 끝난 zip을 올리는 것이 맞습니다.
 
+## Publish a Release
+
+Xcode에 기존 Apple Developer 팀으로 로그인하고, `xcodegen`, `gh`, `jq`를 준비하세요. GitHub CLI에도 저장소 쓰기 권한이 있는 계정으로 로그인해야 합니다.
+
+깨끗한 `main`에서 `git pull --ff-only`로 동기화한 뒤 올릴 버전을 지정하세요.
+
+```bash
+./scripts/publish-release.sh 1.0.2
+```
+
+스크립트는 `project.yml`의 버전과 빌드 번호를 올려 커밋합니다. Xcode 계정으로 Developer ID 서명과 Apple 공증을 마치고, 검증된 ZIP과 SHA-256 파일을 GitHub에서 최신 정식 릴리스로 공개합니다. 공개 후 GitHub Actions가 README 다운로드 링크와 Homebrew cask를 갱신합니다.
+
+GitHub에 공개하지 않고 실제 빌드·서명·공증만 검증하려면 다음 명령을 실행하세요.
+
+```bash
+./scripts/publish-release.sh --verify-only 1.0.2
+```
+
+ZIP과 공증 로그는 `dist/releases/` 아래에 저장됩니다. 공개 도중 중단되면 같은 버전으로 다시 실행해 검증된 ZIP과 해당 커밋의 GitHub 초안을 재사용할 수 있습니다.
+
 ## Developer ID Release
 
 배포용 macOS 앱은 `Developer ID Application` 서명과 notarization이 필요합니다.
