@@ -9,93 +9,97 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 8
     steps:
-      - name: Download the signed release and capture its menu bar panel
+      - uses: actions/checkout@v4
+      - name: Capture the release's SwiftUI view on macOS
         shell: bash
         run: |
           set -euo pipefail
-          zip=Do-Not-Sleep-v1.0.2-macos.zip
-          base=https://github.com/umo-im/do-not-sleep/releases/download/v1.0.2
-          curl -fsSL "$base/$zip" -o "$zip"
-          curl -fsSL "$base/$zip.sha256.txt" -o "$zip.sha256.txt"
-          shasum -a 256 -c "$zip.sha256.txt"
-          ditto -x -k "$zip" release
-          app="$(find release -type d -name '*.app' -prune -print -quit)"
-          test -n "$app"
-          codesign --verify --deep --strict "$app"
-          executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
-          mkdir -p screenshots
-          cat > capture.swift <<'SWIFT'
+          app="$RUNNER_TEMP/Do Not Sleep Capture.app"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" screenshots
+          cp -R Sources/DoNotSleep/Resources/. "$app/Contents/Resources/"
+          python3 - "$app/Contents/Info.plist" <<'PY'
+          import plistlib
+          import sys
+
+          with open(sys.argv[1], 'wb') as file:
+              plistlib.dump({
+                  'CFBundleIdentifier': 'im.umo.dns.capture',
+                  'CFBundleExecutable': 'Capture',
+                  'CFBundleName': 'Do Not Sleep',
+                  'CFBundlePackageType': 'APPL',
+                  'CFBundleDevelopmentRegion': 'en',
+                  'LSUIElement': True,
+              }, file)
+          PY
+          cat > Capture.swift <<'SWIFT'
           import AppKit
-          import CoreGraphics
-          import Foundation
+          import SwiftUI
 
-          struct Window {
-              let id: Int
-              let layer: Int
-              let bounds: CGRect
-          }
+          @main
+          @MainActor
+          struct Capture {
+              static func main() throws {
+                  let arguments = CommandLine.arguments
+                  let locale = arguments[1]
+                  let destination = URL(fileURLWithPath: arguments[2])
+                  let key = "settings.protection.title"
+                  let resource = Bundle.main.path(forResource: locale, ofType: "lproj").flatMap { Bundle(path: $0) }
+                  let expected = resource?.localizedString(forKey: key, value: nil, table: nil)
+                  guard let expected, expected != key, L10n.string(key) == expected else {
+                      fatalError("The app selected \(Bundle.main.preferredLocalizations) instead of \(locale).")
+                  }
 
-          func windows(for pid: Int) -> [Window] {
-              let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-              let info = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-              return info.compactMap { item in
-                  guard item[kCGWindowOwnerPID as String] as? Int == pid,
-                        let id = item[kCGWindowNumber as String] as? Int,
-                        let layer = item[kCGWindowLayer as String] as? Int,
-                        let data = item[kCGWindowBounds as String] as? [String: Any],
-                        let bounds = CGRect(dictionaryRepresentation: data as CFDictionary) else { return nil }
-                  return Window(id: id, layer: layer, bounds: bounds)
+                  let app = NSApplication.shared
+                  app.setActivationPolicy(.accessory)
+                  let controller = SleepAssertionController()
+                  controller.setScreenSaverEnabled(true)
+                  defer { controller.setScreenSaverEnabled(false) }
+                  let content = MenuBarContentView(
+                      sleepController: controller,
+                      launchAtLoginController: LaunchAtLoginController()
+                  )
+                  .environment(\.colorScheme, .light)
+                  .background(Color(nsColor: .windowBackgroundColor))
+
+                  let view = NSHostingView(rootView: content)
+                  view.appearance = NSAppearance(named: .aqua)
+                  let size = view.fittingSize
+                  let bounds = NSRect(x: 0, y: 0, width: ceil(size.width), height: ceil(size.height))
+                  guard bounds.width >= 350, bounds.height >= 500 else {
+                      fatalError("App content did not lay out: \(bounds).")
+                  }
+
+                  let window = NSWindow(contentRect: bounds, styleMask: .borderless, backing: .buffered, defer: false)
+                  window.appearance = view.appearance
+                  window.contentView = view
+                  window.orderFrontRegardless()
+                  RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.5))
+                  view.layoutSubtreeIfNeeded()
+                  guard let bitmap = NSBitmapImageRep(
+                      bitmapDataPlanes: nil, pixelsWide: Int(bounds.width * 2), pixelsHigh: Int(bounds.height * 2),
+                      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+                  ) else { fatalError("Could not allocate image.") }
+                  bitmap.size = bounds.size
+                  view.cacheDisplay(in: bounds, to: bitmap)
+                  guard let png = bitmap.representation(using: .png, properties: [:]) else {
+                      fatalError("Could not encode the app capture.")
+                  }
+                  try png.write(to: destination)
+                  print("\(locale) · \(expected) · \(bitmap.pixelsWide) × \(bitmap.pixelsHigh) · display \(controller.isPreventingScreenSaver)")
               }
           }
-
-          func awaitWindow(pid: Int, where matches: (Window) -> Bool) -> Window? {
-              for _ in 0..<30 {
-                  if let window = windows(for: pid).first(where: matches) { return window }
-                  Thread.sleep(forTimeInterval: 0.3)
-              }
-              fputs("App window bounds: \(windows(for: pid))\n", stderr)
-              return nil
-          }
-
-          func click(_ point: CGPoint) {
-              for type in [CGEventType.leftMouseDown, CGEventType.leftMouseUp] {
-                  CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
-              }
-          }
-
-          let pid = Int(CommandLine.arguments[1])!
-          guard let item = awaitWindow(pid: pid, where: {
-              (1...100).contains($0.bounds.width) && (1...44).contains($0.bounds.height) && $0.bounds.minY < 65
-          }) else {
-              fputs("Do Not Sleep did not expose a visible menu bar item in this session.\n", stderr)
-              exit(1)
-          }
-          click(CGPoint(x: item.bounds.midX, y: item.bounds.midY))
-          guard let panel = awaitWindow(pid: pid, where: {
-              $0.bounds.width >= 350 && $0.bounds.height >= 450
-          }) else {
-              fputs("The released app did not open its menu bar panel.\n", stderr)
-              exit(1)
-          }
-          Thread.sleep(forTimeInterval: 0.7)
-          print(panel.id)
           SWIFT
-          swiftc capture.swift -o capture
+          swiftc -parse-as-library -target "$(uname -m)-apple-macos13.0" -O -framework IOKit \
+            Capture.swift Sources/DoNotSleep/{Localization,MenuBarContentView,MenuBarSections,SleepAssertionController,LaunchAtLoginController}.swift \
+            -o "$app/Contents/MacOS/Capture"
           for language in ko en ja zh-Hans; do
-            "$app/Contents/MacOS/$executable" -AppleLanguages "($language)" > "screenshots/$language.log" 2>&1 &
-            app_pid=$!
-            trap 'kill "$app_pid" 2>/dev/null || true' EXIT
-            window_id="$(./capture "$app_pid")"
-            screencapture -x -o -l "$window_id" "screenshots/$language.png"
-            sips -g pixelWidth -g pixelHeight "screenshots/$language.png"
-            kill "$app_pid"
-            wait "$app_pid" || true
-            trap - EXIT
+            "$app/Contents/MacOS/Capture" "$language" "$PWD/screenshots/$language.png" -AppleLanguages "($language)"
           done
       - name: Upload app panel captures
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: do-not-sleep-app-captures
           path: screenshots/
+          if-no-files-found: error
           retention-days: 3
