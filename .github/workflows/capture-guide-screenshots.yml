@@ -1,0 +1,101 @@
+name: Capture localized Do Not Sleep guide images
+on:
+  push:
+    branches: [codex/guide-localized-screenshots-20261119]
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: macos-26
+    timeout-minutes: 8
+    steps:
+      - name: Download the signed release and capture its menu bar panel
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip=Do-Not-Sleep-v1.0.2-macos.zip
+          base=https://github.com/umo-im/do-not-sleep/releases/download/v1.0.2
+          curl -fsSL "$base/$zip" -o "$zip"
+          curl -fsSL "$base/$zip.sha256.txt" -o "$zip.sha256.txt"
+          shasum -a 256 -c "$zip.sha256.txt"
+          ditto -x -k "$zip" release
+          app="$(find release -type d -name '*.app' -prune -print -quit)"
+          test -n "$app"
+          codesign --verify --deep --strict "$app"
+          executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
+          mkdir -p screenshots
+          cat > capture.swift <<'SWIFT'
+          import AppKit
+          import CoreGraphics
+          import Foundation
+
+          struct Window {
+              let id: Int
+              let layer: Int
+              let bounds: CGRect
+          }
+
+          func windows(for pid: Int) -> [Window] {
+              let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+              let info = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+              return info.compactMap { item in
+                  guard item[kCGWindowOwnerPID as String] as? Int == pid,
+                        let id = item[kCGWindowNumber as String] as? Int,
+                        let layer = item[kCGWindowLayer as String] as? Int,
+                        let data = item[kCGWindowBounds as String] as? [String: Any],
+                        let bounds = CGRect(dictionaryRepresentation: data as CFDictionary) else { return nil }
+                  return Window(id: id, layer: layer, bounds: bounds)
+              }
+          }
+
+          func awaitWindow(pid: Int, where matches: (Window) -> Bool) -> Window? {
+              for _ in 0..<30 {
+                  if let window = windows(for: pid).first(where: matches) { return window }
+                  Thread.sleep(forTimeInterval: 0.3)
+              }
+              fputs("App window bounds: \(windows(for: pid))\n", stderr)
+              return nil
+          }
+
+          func click(_ point: CGPoint) {
+              for type in [CGEventType.leftMouseDown, CGEventType.leftMouseUp] {
+                  CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+              }
+          }
+
+          let pid = Int(CommandLine.arguments[1])!
+          guard let item = awaitWindow(pid: pid, where: {
+              (1...100).contains($0.bounds.width) && (1...44).contains($0.bounds.height) && $0.bounds.minY < 65
+          }) else {
+              fputs("Do Not Sleep did not expose a visible menu bar item in this session.\n", stderr)
+              exit(1)
+          }
+          click(CGPoint(x: item.bounds.midX, y: item.bounds.midY))
+          guard let panel = awaitWindow(pid: pid, where: {
+              $0.bounds.width >= 350 && $0.bounds.height >= 450
+          }) else {
+              fputs("The released app did not open its menu bar panel.\n", stderr)
+              exit(1)
+          }
+          Thread.sleep(forTimeInterval: 0.7)
+          print(panel.id)
+          SWIFT
+          swiftc capture.swift -o capture
+          for language in ko en ja zh-Hans; do
+            "$app/Contents/MacOS/$executable" -AppleLanguages "($language)" > "screenshots/$language.log" 2>&1 &
+            app_pid=$!
+            trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+            window_id="$(./capture "$app_pid")"
+            screencapture -x -o -l "$window_id" "screenshots/$language.png"
+            sips -g pixelWidth -g pixelHeight "screenshots/$language.png"
+            kill "$app_pid"
+            wait "$app_pid" || true
+            trap - EXIT
+          done
+      - name: Upload app panel captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: do-not-sleep-app-captures
+          path: screenshots/
+          retention-days: 3
