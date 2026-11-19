@@ -6,6 +6,7 @@ Do Not Sleep은 Mac 메뉴바에서 바로 켜고 끌 수 있는 초소형 유�
 
 macOS 13 Ventura 이상을 지원합니다. Apple Silicon과 Intel Mac에서 사용할 수 있습니다.
 
+<!-- release-download -->
 **[Do Not Sleep v1.0.1 ZIP 다운로드](https://github.com/umo-im/do-not-sleep/releases/download/v1.0.1/Do-Not-Sleep-v1.0.1-macos.zip)** · [최신 릴리스](https://github.com/umo-im/do-not-sleep/releases/latest)
 
 ZIP을 압축 해제한 뒤 **Do Not Sleep.app**을 **응용 프로그램** 폴더로 옮기세요.
@@ -67,8 +68,8 @@ open DoNotSleep.xcodeproj
 1. `Developer ID Application`으로 Release 빌드
 2. Apple notarization 통과
 3. `.app`을 `.zip` 또는 `.dmg`로 패키징
-4. GitHub Releases 같은 공개 URL에 업로드
-5. Homebrew tap의 cask 파일에서 `version`, `sha256`, `url` 갱신
+4. `Do-Not-Sleep-v<버전>-macos.zip`을 `v<버전>` 릴리스에 첨부하고 최신 정식 버전으로 공개
+5. GitHub Actions의 `Sync release install metadata`가 README의 ZIP 링크와 Homebrew cask를 갱신했는지 확인
 6. `brew install --cask`, `brew uninstall --cask`, `brew reinstall --cask`로 검증
 
 현재 저장소에는 same-repo tap용 cask와 배포 스크립트가 같이 들어 있습니다.
@@ -93,7 +94,7 @@ brew uninstall --cask umo-im/do-not-sleep/umo-do-not-sleep
 중요:
 
 - GitHub Release가 `draft`이면 Homebrew에서 다운로드할 수 없습니다.
-- release asset을 교체하거나 새 버전을 만들면 cask의 `sha256`도 함께 갱신해야 합니다.
+- 공개한 최신 릴리스의 ZIP을 교체했다면 GitHub Actions에서 `Sync release install metadata`를 수동으로 실행해 체크섬을 다시 동기화하세요.
 - 공개 배포용으로는 `Developer ID Application` 서명과 notarization이 끝난 zip을 올리는 것이 맞습니다.
 
 ## Developer ID Release
@@ -146,7 +147,7 @@ NOTARY_PROFILE=DoNotSleep ./scripts/release-developer-id.sh
 - 배포용 zip 생성
 - SHA-256 파일 생성
 
-release zip을 만든 뒤 cask를 현재 zip 기준으로 갱신하려면:
+공개 전에 로컬 ZIP으로 cask를 미리 생성하려면 다음 명령을 실행하세요.
 
 ```bash
 ./scripts/update-homebrew-cask.sh
@@ -167,9 +168,9 @@ xcrun notarytool store-credentials "DoNotSleep"
 - notarization 확인
 - 릴리즈 아카이브 생성
 - SHA-256 계산
-- Homebrew cask 갱신
 - 릴리즈 노트 작성
-- GitHub Release publish
+- ZIP을 첨부한 GitHub Release 공개
+- GitHub Actions에서 README 다운로드 링크와 Homebrew cask 동기화 결과 확인
 
 ## Notes
 
